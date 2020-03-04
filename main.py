@@ -56,8 +56,8 @@ class Map:
 
 
 grid_width = 25
-grid_height = 25
-display_width = 600
+grid_height = 15
+display_width = 1000
 display_height = 600
 tile_width = display_width // grid_width
 tile_height = display_height // grid_height
