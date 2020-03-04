@@ -4,21 +4,22 @@ import random
 import pygame
 import sys
 from time import sleep
+import datetime
 
 
 class Map:
     def __init__(self, seed=None):
         self.map_grid = numpy.empty((grid_width, grid_height), float)
-        self.seed = seed
-        self.base_seed = int(random.random() * 1000)
-        self.display_mode = self.display_map
+        self.seed = seed if seed else hash(str(datetime.datetime.now()))
         self.regenerate()
 
     def generate_map(self):
-        for x in range(grid_width):
-            for y in range(grid_height):
-                self.map_grid[x, y] = noise.snoise2(x / grid_width, y / grid_height,
-                                                    persistence=1, octaves=2, base=self.base_seed)
+        print(self.seed)
+        random.seed(self.seed)
+        temp = random.choices([0, 1], k=grid_width * grid_height)
+        for y in range(grid_height):
+            for x in range(grid_width):
+                self.map_grid[x, y] = temp[10 * y + x]
         self.smooth_map()
         self.connect_rooms()
 
@@ -28,35 +29,24 @@ class Map:
     def connect_rooms(self, passage_size=5):
         pass
 
-    def change_display_mode(self):
-        self.display_mode = self.display_cave if self.display_mode == self.display_map else self.display_map
-        self.display_mode()
-
-    def display_map(self):
+    def display(self):
         for x in range(grid_width):
             for y in range(grid_height):
-                color = int(((self.map_grid[x, y] / 2) + .5) * 255)
+                color = self.map_grid[x, y] * 255
                 pygame.draw.rect(screen, [color, color, color],
                                  (tile_width * x, tile_height * y, tile_width, tile_height))
-                pygame.display.update((tile_width * x, tile_height * y, tile_width, tile_height))
-
-    def display_cave(self):
-        for x in range(grid_width):
-            for y in range(grid_height):
-                pygame.draw.rect(screen, [0, 0, 0] if self.map_grid[x, y] < 0 else [255, 255, 255],
-                                 (tile_width * x, tile_height * y, tile_width, tile_height))
-                pygame.display.update((tile_width * x, tile_height * y, tile_width, tile_height))
+                # pygame.display.update((tile_width * x, tile_height * y, tile_width, tile_height))
 
     def regenerate(self, seed=None):
         if self.seed:
             random.seed(self.seed)
-        self.base_seed = int(random.random() * 1000)
+        self.seed = seed if seed else hash(str(datetime.datetime.now()))
         self.generate_map()
-        self.display_mode()
+        self.display()
 
 
-grid_width = 25
-grid_height = 15
+grid_width = 250
+grid_height = 150
 display_width = 1000
 display_height = 600
 tile_width = display_width // grid_width
@@ -76,6 +66,4 @@ while True:
         if event.type == pygame.KEYDOWN:
             if event.key == pygame.K_F5:
                 main.regenerate()
-            if event.key == pygame.K_SPACE:
-                main.change_display_mode()
     pygame.display.flip()
