@@ -8,8 +8,10 @@ import datetime
 
 
 class Map:
-    def __init__(self, seed=None):
-        self.grid = [numpy.empty((grid_width, grid_height), float)]
+    def __init__(self, seed=None, cutoff_percentage=50):
+        self.cutoff_percentage = cutoff_percentage
+        self.grids = [numpy.empty((grid_width, grid_height), float)]
+        self.current_grid = self.grids[0]
         self.seed = seed if seed else hash(str(datetime.datetime.now()))
         self.regenerate()
 
@@ -17,7 +19,7 @@ class Map:
         random.seed(self.seed)
         for y in range(grid_height):
             for x in range(grid_width):
-                self.grid[0][x, y] = random.randint(0, 1)
+                self.current_grid[x, y] = 0 if random.uniform(0, 100) < self.cutoff_percentage else 1
 
     def smooth_map(self, factor=1):
         for iteration in range(factor):
@@ -25,9 +27,9 @@ class Map:
                 for y in range(grid_height):
                     surrounding_count = len(self.get_surrounding(x, y))
                     if surrounding_count > 4:
-                        self.grid[0][x, y] = 1
+                        self.current_grid[x, y] = 1
                     elif surrounding_count < 4:
-                        self.grid[0][x, y] = 0
+                        self.current_grid[x, y] = 0
                     self.display(False, x, y)
 
     def connect_rooms(self, passage_size=5):
@@ -37,12 +39,12 @@ class Map:
         if full:
             for x in range(grid_width):
                 for y in range(grid_height):
-                    color = self.grid[0][x, y] * 255
+                    color = self.current_grid[x, y] * 255
                     pygame.draw.rect(screen, [color, color, color],
                                      (tile_width * x, tile_height * y, tile_width, tile_height))
                     # pygame.display.update((tile_width * x, tile_height * y, tile_width, tile_height))
         else:
-            color = [self.grid[0][x, y] * 255] * 3
+            color = [self.current_grid[x, y] * 255] * 3
             pygame.draw.rect(screen, color,
                              (tile_width * x, tile_height * y, tile_width, tile_height))
             pygame.display.update((tile_width * x, tile_height * y, tile_width, tile_height))
@@ -64,10 +66,10 @@ class Map:
             (x + distance, y - distance)
         ]
 
-        return [self.grid[0][surrounding_coordinate] for surrounding_coordinate in surrounding_coordinates
+        return [self.current_grid[surrounding_coordinate] for surrounding_coordinate in surrounding_coordinates
                 if not self.is_out_of_bounds(surrounding_coordinate)
-                and ((wall and self.grid[0][surrounding_coordinate] == 1)
-                     or (space and self.grid[0][surrounding_coordinate] == 0))]
+                and ((wall and self.current_grid[surrounding_coordinate] == 1)
+                     or (space and self.current_grid[surrounding_coordinate] == 0))]
 
     @staticmethod
     def is_out_of_bounds(coordinates):
@@ -86,7 +88,7 @@ step_time = 0
 pygame.init()
 screen = pygame.display.set_mode((display_width, display_height))
 screen.fill([255, 255, 255])
-main = Map()
+main = Map(cutoff_percentage=50)
 
 while True:
     for event in pygame.event.get():
