@@ -35,7 +35,7 @@ class Map:
             self.display(self.grids[self.current_grid])
 
     @staticmethod
-    def display(grid, fast=True, x=0, y=0):
+    def display(grid, fast=True):
         grid = grid.grid
         for x in range(grid_width):
             for y in range(grid_height):
