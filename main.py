@@ -76,6 +76,12 @@ class Map:
         x, y = coordinates
         return not (0 <= x < grid_width and 0 <= y < grid_height)
 
+    class Grid:
+        def __init__(self, seed=None, cutoff_percentage=50):
+            self.cutoff_percentage = cutoff_percentage
+            self.grid = numpy.empty((grid_width, grid_height), float)
+            self.seed = seed if seed else hash(str(datetime.datetime.now()))
+
 
 grid_width = 250
 grid_height = 150
