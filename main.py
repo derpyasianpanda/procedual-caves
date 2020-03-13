@@ -52,6 +52,8 @@ class Grid:
         self.grid = numpy.empty((grid_width, grid_height), float)
         self.seed = seed
         self.generate_initial_grid()
+        self.room_regions = self.generate_regions(0)
+        self.wall_regions = self.generate_regions(1)
 
     def generate_initial_grid(self):
         random.seed(self.seed)
@@ -69,25 +71,73 @@ class Grid:
                     elif surrounding_count < 4:
                         self.grid[x, y] = 0
 
+        self.room_regions = self.generate_regions(0)
+        self.wall_regions = self.generate_regions(1)
+        print(len(self.room_regions), len(self.wall_regions))
+
+    def generate_regions(self, tile_type):
+        checked = numpy.full((grid_width, grid_height), False)
+        regions = []
+        for x in range(grid_width):
+            for y in range(grid_height):
+                if not checked[x, y] and self.grid[x, y] == tile_type:
+                    region = self.get_region_coordinates(x, y)
+                    regions.append(region)
+                    for coordinate in region:
+                        checked[coordinate] = True
+        return regions
+
+    def get_region_coordinates(self, x, y):
+        coordinates = []
+        checked = numpy.full((grid_width, grid_height), False)
+        tile_type = self.grid[x, y]
+
+        to_check = [[x, y]]
+        checked[x, y] = True
+        while to_check:
+            coordinate = to_check.pop()
+            coordinates.append(coordinate)
+            for next_coordinate in self.get_surrounding(coordinate[0], coordinate[1], diagonals=False,
+                                                        wall=bool(tile_type), space=not bool(tile_type), count=False):
+                if not checked[next_coordinate]:
+                    checked[next_coordinate] = True
+                    to_check.append(next_coordinate)
+        return coordinates
+
     def connect_rooms(self, passage_size=5):
         pass
 
-    def get_surrounding(self, x, y, distance=1, wall=True, space=False):
-        surrounding_coordinates = [
+    def get_surrounding(self, x, y, distance=1, diagonals=True, wall=True, space=False, count=True):
+        adjacent_coordinates = [
             (x, y - distance),
             (x + distance, y),
             (x, y + distance),
-            (x - distance, y),
+            (x - distance, y)
+        ]
+
+        result = [(self.grid[adjacent_coordinate] if count else adjacent_coordinate)
+                  for adjacent_coordinate in adjacent_coordinates
+                  if not self.is_out_of_bounds(adjacent_coordinate)
+                  and ((wall and self.grid[adjacent_coordinate] == 1)
+                       or (space and self.grid[adjacent_coordinate] == 0))]
+
+        if not diagonals:
+            return result
+
+        diagonal_coordinates = [
             (x - distance, y - distance),
             (x + distance, y + distance),
             (x - distance, y + distance),
             (x + distance, y - distance)
         ]
 
-        return [self.grid[surrounding_coordinate] for surrounding_coordinate in surrounding_coordinates
-                if not self.is_out_of_bounds(surrounding_coordinate)
-                and ((wall and self.grid[surrounding_coordinate] == 1)
-                     or (space and self.grid[surrounding_coordinate] == 0))]
+        result += [(self.grid[diagonal_coordinate] if count else diagonal_coordinate)
+                   for diagonal_coordinate in diagonal_coordinates
+                   if not self.is_out_of_bounds(diagonal_coordinate)
+                   and ((wall and self.grid[diagonal_coordinate] == 1)
+                        or (space and self.grid[diagonal_coordinate] == 0))]
+
+        return result
 
     @staticmethod
     def is_out_of_bounds(coordinates):
