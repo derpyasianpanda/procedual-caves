@@ -7,8 +7,8 @@ import datetime
 import copy
 
 
-class Map:
-    def __init__(self, seed=None, cutoff_percentage=50):
+class GridCollection:
+    def __init__(self, cutoff_percentage=50):
         self.cutoff_percentage = cutoff_percentage
         self.regenerate()
 
@@ -39,8 +39,7 @@ class Map:
         grid = grid.grid
         for x in range(grid_width):
             for y in range(grid_height):
-                color = [grid[x, y] * 255] * 3
-                pygame.draw.rect(screen, color,
+                pygame.draw.rect(screen, grid[x, y].color,
                                  (tile_width * x, tile_height * y, tile_width, tile_height))
                 if not fast:
                     pygame.display.update((tile_width * x, tile_height * y, tile_width, tile_height))
@@ -49,7 +48,7 @@ class Map:
 class Grid:
     def __init__(self, seed, cutoff_percentage):
         self.cutoff_percentage = cutoff_percentage
-        self.grid = numpy.empty((grid_width, grid_height), float)
+        self.grid = numpy.empty((grid_width, grid_height), Tile)
         self.seed = seed
         self.generate_initial_grid()
         self.room_regions = self.generate_regions(0)
@@ -59,7 +58,8 @@ class Grid:
         random.seed(self.seed)
         for y in range(grid_height):
             for x in range(grid_width):
-                self.grid[x, y] = 0 if random.uniform(0, 100) < self.cutoff_percentage else 1
+                self.grid[x, y] = Tile(x, y, tile_type=0) if random.uniform(0, 100) < self.cutoff_percentage \
+                    else Tile(x, y, tile_type=1)
 
     def smooth_map(self, factor=1):
         for iteration in range(factor):
@@ -67,9 +67,9 @@ class Grid:
                 for y in range(grid_height):
                     surrounding_count = len(self.get_surrounding(x, y))
                     if surrounding_count > 4:
-                        self.grid[x, y] = 1
+                        self.grid[x, y].tile_type = 1
                     elif surrounding_count < 4:
-                        self.grid[x, y] = 0
+                        self.grid[x, y].tile_type = 0
 
         self.room_regions = self.generate_regions(0)
         self.wall_regions = self.generate_regions(1)
@@ -80,34 +80,37 @@ class Grid:
         regions = []
         for x in range(grid_width):
             for y in range(grid_height):
-                if not checked[x, y] and self.grid[x, y] == tile_type:
-                    region = self.get_region_coordinates(x, y)
+                if not checked[x, y] and self.grid[x, y].tile_type == tile_type:
+                    region = self.get_region_tiles(self.grid[x, y])
                     regions.append(region)
-                    for coordinate in region:
-                        checked[coordinate] = True
+                    for tile in region:
+                        checked[tile.coordinate] = True
         return regions
 
-    def get_region_coordinates(self, x, y):
-        coordinates = []
+    def get_region_tiles(self, tile):
+        tiles = []
         checked = numpy.full((grid_width, grid_height), False)
-        tile_type = self.grid[x, y]
+        tile_type = tile.tile_type
 
-        to_check = [[x, y]]
-        checked[x, y] = True
+        to_check = [tile]
+        checked[tile.coordinate] = True
         while to_check:
-            coordinate = to_check.pop()
-            coordinates.append(coordinate)
-            for next_coordinate in self.get_surrounding(coordinate[0], coordinate[1], diagonals=False,
-                                                        wall=bool(tile_type), space=not bool(tile_type), count=False):
-                if not checked[next_coordinate]:
-                    checked[next_coordinate] = True
-                    to_check.append(next_coordinate)
-        return coordinates
+            current_tile = to_check.pop()
+            tiles.append(current_tile)
+            for next_tile in self.get_surrounding(tile=current_tile, diagonals=False,
+                                                  wall=bool(tile_type), space=not bool(tile_type)):
+                if not checked[next_tile.coordinate]:
+                    checked[next_tile.coordinate] = True
+                    to_check.append(next_tile)
+        return tiles
 
     def connect_rooms(self, passage_size=5):
         pass
 
-    def get_surrounding(self, x, y, distance=1, diagonals=True, wall=True, space=False, count=True):
+    def get_surrounding(self, x=0, y=0, tile=None, distance=1, diagonals=True, wall=True, space=False, coordinate=False):
+        if tile:
+            x, y = tile.coordinate
+
         adjacent_coordinates = [
             (x, y - distance),
             (x + distance, y),
@@ -115,11 +118,11 @@ class Grid:
             (x - distance, y)
         ]
 
-        result = [(self.grid[adjacent_coordinate] if count else adjacent_coordinate)
+        result = [(self.grid[adjacent_coordinate] if not coordinate else adjacent_coordinate)
                   for adjacent_coordinate in adjacent_coordinates
                   if not self.is_out_of_bounds(adjacent_coordinate)
-                  and ((wall and self.grid[adjacent_coordinate] == 1)
-                       or (space and self.grid[adjacent_coordinate] == 0))]
+                  and ((wall and self.grid[adjacent_coordinate].tile_type == 1)
+                       or (space and self.grid[adjacent_coordinate].tile_type == 0))]
 
         if not diagonals:
             return result
@@ -131,11 +134,11 @@ class Grid:
             (x + distance, y - distance)
         ]
 
-        result += [(self.grid[diagonal_coordinate] if count else diagonal_coordinate)
+        result += [(self.grid[diagonal_coordinate] if not coordinate else diagonal_coordinate)
                    for diagonal_coordinate in diagonal_coordinates
                    if not self.is_out_of_bounds(diagonal_coordinate)
-                   and ((wall and self.grid[diagonal_coordinate] == 1)
-                        or (space and self.grid[diagonal_coordinate] == 0))]
+                   and ((wall and self.grid[diagonal_coordinate].tile_type == 1)
+                        or (space and self.grid[diagonal_coordinate].tile_type == 0))]
 
         return result
 
@@ -143,6 +146,26 @@ class Grid:
     def is_out_of_bounds(coordinates):
         x, y = coordinates
         return not (0 <= x < grid_width and 0 <= y < grid_height)
+
+
+class Tile:
+    def __init__(self, x=0, y=0, coordinate=None, tile_type=0, debug=False):
+        if coordinate:
+            self.x, self.y = coordinate
+            self.coordinate = coordinate
+        else:
+            self.x, self.y = x, y
+            self.coordinate = (x, y)
+
+        self.tile_type = tile_type
+        self.debug = False
+
+    @property
+    def color(self):
+        if self.debug:
+            return [0, 0, 255] if bool(self.tile_type) else [255, 0, 0]
+        else:
+            return [self.tile_type * 255] * 3
 
 
 grid_width = 250
@@ -156,7 +179,7 @@ step_time = 0
 pygame.init()
 screen = pygame.display.set_mode((display_width, display_height))
 screen.fill([255, 255, 255])
-main = Map(cutoff_percentage=50)
+main = GridCollection(cutoff_percentage=50)
 
 while True:
     for event in pygame.event.get():
