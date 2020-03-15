@@ -97,8 +97,7 @@ class Grid:
         while to_check:
             current_tile = to_check.pop()
             tiles.append(current_tile)
-            for next_tile in self.get_surrounding(tile=current_tile, diagonals=False,
-                                                  wall=bool(tile_type), space=not bool(tile_type)):
+            for next_tile in self.get_surrounding(tile=current_tile, diagonals=False, tile_types=[tile_type]):
                 if not checked[next_tile.coordinate]:
                     checked[next_tile.coordinate] = True
                     to_check.append(next_tile)
@@ -107,7 +106,7 @@ class Grid:
     def connect_rooms(self, passage_size=5):
         pass
 
-    def get_surrounding(self, x=0, y=0, tile=None, distance=1, diagonals=True, wall=True, space=False, coordinate=False):
+    def get_surrounding(self, x=0, y=0, tile=None, distance=1, diagonals=True, tile_types=[1], coordinate=False):
         if tile:
             x, y = tile.coordinate
 
@@ -121,8 +120,7 @@ class Grid:
         result = [(self.grid[adjacent_coordinate] if not coordinate else adjacent_coordinate)
                   for adjacent_coordinate in adjacent_coordinates
                   if not self.is_out_of_bounds(adjacent_coordinate)
-                  and ((wall and self.grid[adjacent_coordinate].tile_type == 1)
-                       or (space and self.grid[adjacent_coordinate].tile_type == 0))]
+                  and self.grid[adjacent_coordinate].tile_type in tile_types]
 
         if not diagonals:
             return result
@@ -137,8 +135,7 @@ class Grid:
         result += [(self.grid[diagonal_coordinate] if not coordinate else diagonal_coordinate)
                    for diagonal_coordinate in diagonal_coordinates
                    if not self.is_out_of_bounds(diagonal_coordinate)
-                   and ((wall and self.grid[diagonal_coordinate].tile_type == 1)
-                        or (space and self.grid[diagonal_coordinate].tile_type == 0))]
+                   and self.grid[diagonal_coordinate].tile_type in tile_types]
 
         return result
 
