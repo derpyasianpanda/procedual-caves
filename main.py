@@ -18,13 +18,19 @@ class GridCollection:
         self.grids = [Grid(self.seed, self.cutoff_percentage)]
         self.display(self.grids[self.current_grid])
 
-    def action(self, action):
+    def action(self, action, parameter=None):
         new_grid = copy.deepcopy(self.grids[self.current_grid])
         actions = {
             "smooth": new_grid.smooth_map,
-            "connect": new_grid.connect_rooms
+            "connect": new_grid.connect_rooms,
+            "debug": new_grid.toggle_debug,
+            "remove_small": new_grid.remove_small_regions
         }
-        actions[action]()
+        if parameter is not None:
+            actions[action](parameter)
+        else:
+            actions[action]()
+
         self.grids = self.grids[:self.current_grid + 1] + [new_grid]
         self.current_grid += 1
         self.display(self.grids[self.current_grid], False)
@@ -44,6 +50,13 @@ class GridCollection:
                 if not fast:
                     pygame.display.update((tile_width * x, tile_height * y, tile_width, tile_height))
 
+    def display_tester(self):
+        for region in self.grids[self.current_grid].room_regions:
+            for tile in region.tiles:
+                x, y = tile.coordinate
+                pygame.draw.rect(screen, (0, 255, 0),
+                                 (tile_width * x, tile_height * y, tile_width, tile_height))
+
 
 class Grid:
     def __init__(self, seed, cutoff_percentage):
@@ -58,22 +71,28 @@ class Grid:
         random.seed(self.seed)
         for y in range(grid_height):
             for x in range(grid_width):
-                self.grid[x, y] = Tile(x, y, tile_type=0) if random.uniform(0, 100) < self.cutoff_percentage \
-                    else Tile(x, y, tile_type=1)
+                self.grid[x, y] = Tile(x, y, tile_type=1) \
+                    if random.uniform(0, 100) < self.cutoff_percentage \
+                    or x in [0, grid_width - 1] \
+                    or y in [0, grid_height - 1] \
+                    else Tile(x, y, tile_type=0)
+
+    def generate_new_regions(self):
+        self.room_regions = self.generate_regions(0)
+        self.wall_regions = self.generate_regions(1)
 
     def smooth_map(self, factor=1):
         for iteration in range(factor):
             for x in range(grid_width):
                 for y in range(grid_height):
-                    surrounding_count = len(self.get_surrounding(x, y))
-                    if surrounding_count > 4:
-                        self.grid[x, y].tile_type = 1
-                    elif surrounding_count < 4:
-                        self.grid[x, y].tile_type = 0
+                    if x not in [0, grid_width - 1] and y not in [0, grid_height - 1]:
+                        surrounding_count = len(self.get_surrounding(x, y))
+                        if surrounding_count > 4:
+                            self.grid[x, y].tile_type = 1
+                        elif surrounding_count < 4:
+                            self.grid[x, y].tile_type = 0
 
-        self.room_regions = self.generate_regions(0)
-        self.wall_regions = self.generate_regions(1)
-        print(len(self.room_regions), len(self.wall_regions))
+        self.generate_new_regions()
 
     def generate_regions(self, tile_type):
         checked = numpy.full((grid_width, grid_height), False)
@@ -81,11 +100,14 @@ class Grid:
         for x in range(grid_width):
             for y in range(grid_height):
                 if not checked[x, y] and self.grid[x, y].tile_type == tile_type:
-                    region = self.get_region_tiles(self.grid[x, y])
+                    region = self.get_region(self.grid[x, y])
                     regions.append(region)
-                    for tile in region:
+                    for tile in region.tiles:
                         checked[tile.coordinate] = True
         return regions
+
+    def get_region(self, tile):
+        return Region(self.get_region_tiles(tile))
 
     def get_region_tiles(self, tile):
         tiles = []
@@ -105,6 +127,19 @@ class Grid:
 
     def connect_rooms(self, passage_size=5):
         pass
+
+    def remove_small_regions(self, cutoff):
+        for region in self.room_regions:
+            self.remove_helper(region, cutoff)
+        for region in self.wall_regions:
+            self.remove_helper(region, cutoff)
+        self.generate_new_regions()
+
+    def remove_helper(self, region, cutoff):
+        if region.size < cutoff:
+            for tile in region.tiles:
+                x, y = tile.coordinate
+                self.grid[x, y].tile_type = int(not bool(self.grid[x, y].tile_type))
 
     def get_surrounding(self, x=0, y=0, tile=None, distance=1, diagonals=True, tile_types=[1], coordinate=False):
         if tile:
@@ -139,6 +174,12 @@ class Grid:
 
         return result
 
+    def toggle_debug(self, option):
+        for x in range(grid_width):
+            for y in range(grid_height):
+                if self.grid[x, y].tile_type == option:
+                    self.grid[x, y].debug = not self.grid[x, y].debug
+
     @staticmethod
     def is_out_of_bounds(coordinates):
         x, y = coordinates
@@ -160,9 +201,18 @@ class Tile:
     @property
     def color(self):
         if self.debug:
-            return [0, 0, 255] if bool(self.tile_type) else [255, 0, 0]
+            return (0, 0, 255) if self.tile_type else (255, 0, 0)
         else:
-            return [self.tile_type * 255] * 3
+            return (int(not bool(self.tile_type)) * 255,) * 3
+
+
+class Region:
+    def __init__(self, tiles):
+        self.tiles = tiles
+        self.size = len(self.tiles)
+
+    def get_edge_tiles(self):
+        pass
 
 
 grid_width = 250
@@ -194,4 +244,12 @@ while True:
                 main.grid_change(-1)
             if event.key == pygame.K_RIGHT:
                 main.grid_change(1)
+            if event.key == pygame.K_EQUALS:
+                main.action("debug", 0)
+            if event.key == pygame.K_MINUS:
+                main.action("debug", 1)
+            if event.key == pygame.K_r:
+                main.action("remove_small", 25)
+            if event.key == pygame.K_t:
+                main.display_tester()
     pygame.display.flip()
