@@ -50,6 +50,7 @@ class GridCollection:
                 if not fast:
                     pygame.display.update((tile_width * x, tile_height * y, tile_width, tile_height))
 
+    # THIS IS NOT A PROPER DEBUGGER! DON'T USE
     def display_tester(self):
         for region in self.grids[self.current_grid].room_regions:
             for tile in region.tiles:
@@ -63,11 +64,11 @@ class Grid:
         self.cutoff_percentage = cutoff_percentage
         self.grid = numpy.empty((grid_width, grid_height), Tile)
         self.seed = seed
-        self.generate_initial_grid()
+        self.generate_grid()
         self.room_regions = self.generate_regions(0)
         self.wall_regions = self.generate_regions(1)
 
-    def generate_initial_grid(self):
+    def generate_grid(self):
         random.seed(self.seed)
         for y in range(grid_height):
             for x in range(grid_width):
@@ -107,7 +108,8 @@ class Grid:
         return regions
 
     def get_region(self, tile):
-        return Region(self.get_region_tiles(tile))
+        tiles = self.get_region_tiles(tile)
+        return Region(tiles, self.get_edge_tiles(tiles))
 
     def get_region_tiles(self, tile):
         tiles = []
@@ -174,6 +176,13 @@ class Grid:
 
         return result
 
+    def get_edge_tiles(self, tiles):
+        edge_tiles = []
+        for tile in tiles:
+            if self.get_surrounding(tile=tile, diagonals=False, tile_types=[int(not bool(tile.tile_type))]):
+                edge_tiles.append(tile)
+        return edge_tiles
+
     def toggle_debug(self, option):
         for x in range(grid_width):
             for y in range(grid_height):
@@ -198,6 +207,9 @@ class Tile:
         self.tile_type = tile_type
         self.debug = False
 
+    def __repr__(self):
+        return f"{self.tile_type} tile type @ {self.coordinate}"
+
     @property
     def color(self):
         if self.debug:
@@ -207,12 +219,13 @@ class Tile:
 
 
 class Region:
-    def __init__(self, tiles):
+    def __init__(self, tiles, edge_tiles):
         self.tiles = tiles
-        self.size = len(self.tiles)
+        self.edge_tiles = edge_tiles
 
-    def get_edge_tiles(self):
-        pass
+    @property
+    def size(self):
+        return len(self.tiles)
 
 
 grid_width = 250
